@@ -45,7 +45,6 @@ func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("loading includes:")
 	includes, err := template.New("root").ParseGlob(filepath.Join(absIncludePath, "*"))
 	if err != nil {
 		return nil, err
@@ -58,7 +57,6 @@ func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error
 
 	// load templates
 	absRootPath, err := filepath.Abs(options.RootPath)
-	fmt.Println("loading templates:")
 	if err != nil {
 		return nil, err
 	}
@@ -79,8 +77,6 @@ func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error
 				return err
 			}
 
-			fmt.Println("  " + relativePath)
-
 			tm.storedTemplates[relativePath] = newTemplate
 		}
 		return nil
@@ -98,16 +94,15 @@ func (tm *TemplateManager) GetExecutor(templatePath string, exampleModel any) (*
 		return nil, errors.New("couldn't find template: " + templatePath)
 	}
 
-	var err error = nil
+	var name string = ""
 	if tm.baseExists {
-		err = govalidtemple.ValidateViewModel(exampleModel, tmpl, BASE)
+		name = BASE
 	} else {
-		err = govalidtemple.ValidateViewModel(exampleModel, tmpl, templatePath)
+		name = templatePath
 	}
+	err := govalidtemple.ValidateViewModel(exampleModel, tmpl, name)
 	if err != nil {
-		return nil, errors.New("couldn't validate view model: " + err.Error())
-	} else {
-		fmt.Println("validated template")
+		return nil, fmt.Errorf("couldn't validate view model for [%v]: %v", templatePath, err.Error())
 	}
 
 	return &TemplateExecutor{
@@ -123,14 +118,15 @@ func (tm *TemplateManager) GetTemplate(templatePath string, exampleModel any) (*
 		return nil, errors.New("couldn't find template: " + templatePath)
 	}
 
-	var err error = nil
+	var name string = ""
 	if tm.baseExists {
-		err = govalidtemple.ValidateViewModel(exampleModel, tmpl, BASE)
+		name = BASE
 	} else {
-		err = govalidtemple.ValidateViewModel(exampleModel, tmpl, templatePath)
+		name = templatePath
 	}
+	err := govalidtemple.ValidateViewModel(exampleModel, tmpl, name)
 	if err != nil {
-		return nil, errors.New("couldn't validate view model: " + err.Error())
+		return nil, fmt.Errorf("couldn't validate view model for [%v]: %v", templatePath, err.Error())
 	}
 
 	return tmpl, nil
@@ -186,8 +182,6 @@ func (tm TemplateExecutor) ExecuteToString(data any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error executing template [%v]: %v", tm.targetTemplate.Name(), err.Error())
 	}
-
-	fmt.Println(tm.targetTemplate.Tree)
 
 	return buffer.String(), nil
 }
