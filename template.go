@@ -20,6 +20,7 @@ var (
 type TemplateManagerOptions struct {
 	RootPath    string
 	IncludePath string
+	funcMap     map[string]any
 }
 
 // -----------------------------------
@@ -27,27 +28,43 @@ type TemplateManagerOptions struct {
 type TemplateManager struct {
 	storedTemplates map[string]*template.Template
 	baseExists      bool
+	options         TemplateManagerOptions
+	funcMap         template.FuncMap
+	watchedDirs     []string //list of paths being watched
 }
 
 func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error) {
-	tm := TemplateManager{
-		storedTemplates: make(map[string]*template.Template),
+	// TODO: validate options
+	// TODO: start filesystem watcher if configured
+
+	if options.funcMap == nil {
+		options.funcMap = make(map[string]any)
 	}
 
-	// TODO: validate options
+	tm := TemplateManager{
+		options:     options,
+		funcMap:     options.funcMap,
+		watchedDirs: make([]string, 0),
+	}
 
-	// TODO: start filesystem watcher if configured
-	// for includes, just need to reload changed ones, filename will overwrite in the root
-	// for templates, need to reparse and then add to root with the same name, overwriting existing
-
-	// load includes
-	absIncludePath, err := filepath.Abs(options.IncludePath)
+	err := tm.reloadTemplates()
 	if err != nil {
 		return nil, err
+	}
+	return &tm, nil
+}
+
+func (tm *TemplateManager) reloadTemplates() error {
+	tm.storedTemplates = make(map[string]*template.Template)
+
+	// load includes
+	absIncludePath, err := filepath.Abs(tm.options.IncludePath)
+	if err != nil {
+		return err
 	}
 	includes, err := template.New("root").ParseGlob(filepath.Join(absIncludePath, "*"))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	base := includes.Lookup(BASE)
@@ -56,9 +73,9 @@ func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error
 	}
 
 	// load templates
-	absRootPath, err := filepath.Abs(options.RootPath)
+	absRootPath, err := filepath.Abs(tm.options.RootPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	err = filepath.WalkDir(absRootPath, func(path string, d fs.DirEntry, err error) error {
 		if !d.IsDir() && err == nil && d.Type().IsRegular() {
@@ -82,10 +99,10 @@ func NewTemplateManager(options TemplateManagerOptions) (*TemplateManager, error
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &tm, nil
+	return nil
 }
 
 func (tm *TemplateManager) GetExecutor(templatePath string, exampleModel any) (*TemplateExecutor, error) {
